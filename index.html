@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
   <title>Unicorn Run</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -13,27 +16,22 @@
     <div id="start-screen" class="overlay visible">
       <div class="panel">
         <h1>UNICORN RUN</h1>
-        <p>Simple vertical platformer build</p>
+        <p>Simple placeholder start screen</p>
         <button id="start-btn">Press Start</button>
-        <div class="help">Collect food, avoid hazards, and reach the finish. Touch controls are enabled for iPhone.</div>
+        <div class="help">Move with arrows. Tap jump to leap and collect food.</div>
       </div>
     </div>
 
     <div id="end-screen" class="overlay hidden">
       <div class="panel">
-        <h2 id="end-title">Game Over</h2>
+        <h2 id="end-title">Level Complete</h2>
         <p id="final-score">Score: 0</p>
         <button id="restart-btn">Play Again</button>
       </div>
     </div>
 
     <div id="hud">
-      <div class="hud-row">
-        <div class="hud-pill">Score: <span id="score">0</span></div>
-      </div>
-      <div class="health-wrap">
-        <img id="health-bar" src="assets/health_bar/healthbar_5.png" alt="Health bar" />
-      </div>
+      <div>Score: <span id="score">0</span></div>
     </div>
 
     <div id="touch-controls">
