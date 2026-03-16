@@ -7,15 +7,16 @@ const endScreen = document.getElementById("end-screen");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
 const endTitle = document.getElementById("end-title");
-const scoreEl = document.getElementById("score");
 const finalScoreEl = document.getElementById("final-score");
+const scoreEl = document.getElementById("score");
+const healthUi = document.getElementById("health-ui");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 const TILE = 64;
-const WORLD_WIDTH = 5000;
+const WORLD_WIDTH = 4200;
 const GRAVITY = 0.55;
-const MAX_FALL = 15;
+const MAX_FALL = 14;
 
 const input = {
   left: false,
@@ -30,10 +31,17 @@ const state = {
   won: false,
   score: 0,
   cameraX: 0,
+  level: 1,
   lastTime: 0,
+  portalOpen: false,
+  portalPulse: 0,
+  transitioning: false,
+  transitionTimer: 0,
+  grassAnim: 0
 };
 
 const images = {};
+const particles = [];
 
 const assetPaths = {
   player: "assets/unicorn_run.png",
@@ -82,22 +90,8 @@ const foodKeys = [
   "lemon", "peach", "pear", "pineapple", "strawberry", "watermelon"
 ];
 
-const bgKeys = [
-   "bg6",
-  "bg5",
-  "bg4",
-  "bg3",
-  "bg2",
-  "bg1"
-];
-const bgSpeeds = [
-  0.02,
-  0.05,
-  0.09,
-  0.15,
-  0.25,
-  0.4
-];
+const bgKeys = ["bg6", "bg5", "bg4", "bg3", "bg2", "bg1"];
+const bgSpeeds = [0.02, 0.05, 0.09, 0.14, 0.24, 0.38];
 
 function loadImage(key, src) {
   return new Promise((resolve, reject) => {
@@ -123,7 +117,7 @@ const player = {
   h: 112,
   vx: 0,
   vy: 0,
-  speed: 4.4,
+  speed: 4.2,
   jumpPower: 12.8,
   grounded: false,
   facing: 1,
@@ -139,58 +133,47 @@ let groundSegments = [];
 let floatingPlatforms = [];
 let hazards = [];
 let collectibles = [];
-let finishZone = { x: WORLD_WIDTH - 260, y: 420, w: 100, h: 180 };
+let finishZone = { x: WORLD_WIDTH - 220, y: 430, w: 120, h: 160 };
 
-function resetWorld() {
-  state.started = false;
-  state.ended = false;
-  state.won = false;
-  state.score = 0;
-  state.cameraX = 0;
-  state.lastTime = 0;
-  scoreEl.textContent = "0";
+function makeLevel(levelNumber) {
+  const groundY = 596;
+  const gapBase = levelNumber === 1 ? 56 : 72;
 
   groundSegments = [
-    { x: 0, y: 592, width: 7, height: 3 },
-    { x: 520, y: 640, width: 2, height: 2 },
-    { x: 710, y: 610, width: 4, height: 3 },
-    { x: 1090, y: 670, width: 2, height: 2 },
-    { x: 1300, y: 590, width: 5, height: 3 },
-    { x: 1850, y: 645, width: 2, height: 2 },
-    { x: 2040, y: 610, width: 4, height: 3 },
-    { x: 2460, y: 680, width: 2, height: 2 },
-    { x: 2660, y: 600, width: 5, height: 3 },
-    { x: 3240, y: 640, width: 2, height: 2 },
-    { x: 3440, y: 590, width: 5, height: 3 },
-    { x: 4040, y: 635, width: 2, height: 2 },
-    { x: 4240, y: 600, width: 6, height: 3 }
+    { x: 0, y: groundY, width: 8, height: 3 },
+    { x: 8 * TILE + gapBase, y: groundY + 12, width: 4, height: 3 },
+    { x: 12 * TILE + gapBase + 40, y: groundY - 8, width: 5, height: 3 },
+    { x: 17 * TILE + gapBase + 78, y: groundY + 10, width: 4, height: 3 },
+    { x: 21 * TILE + gapBase + 116, y: groundY - 10, width: 6, height: 3 },
+    { x: 27 * TILE + gapBase + 158, y: groundY + 10, width: 4, height: 3 },
+    { x: 31 * TILE + gapBase + 195, y: groundY - 8, width: 5, height: 3 },
+    { x: 36 * TILE + gapBase + 236, y: groundY, width: 8, height: 3 }
   ];
 
   floatingPlatforms = [
-    { x: 300, y: 470, width: 2 },
-    { x: 760, y: 420, width: 2 },
-    { x: 1180, y: 500, width: 2 },
-    { x: 1530, y: 430, width: 2 },
-    { x: 2140, y: 470, width: 2 },
-    { x: 2780, y: 430, width: 2 },
-    { x: 3560, y: 410, width: 2 },
-    { x: 4320, y: 445, width: 2 }
+    { x: 360, y: 500, width: 2 },
+    { x: 680, y: 480, width: 2 },
+    { x: 980, y: 485, width: 2 },
+    { x: 1420, y: 470, width: 2 },
+    { x: 1860, y: 490, width: 2 },
+    { x: 2300, y: 470, width: 2 },
+    { x: 2730, y: 485, width: 2 },
+    { x: 3170, y: 468, width: 2 },
+    { x: 3580, y: 490, width: 2 }
   ];
 
   hazards = [
-    { x: 640, y: 610, w: 60, h: 34 },
-    { x: 1235, y: 640, w: 60, h: 34 },
-    { x: 1980, y: 615, w: 60, h: 34 },
-    { x: 2610, y: 650, w: 60, h: 34 },
-    { x: 3360, y: 615, w: 60, h: 34 },
-    { x: 4180, y: 625, w: 60, h: 34 }
+    { x: 770, y: 620, w: 54, h: 28 },
+    { x: 1670, y: 618, w: 54, h: 28 },
+    { x: 2560, y: 620, w: 54, h: 28 },
+    { x: 3380, y: 620, w: 54, h: 28 }
   ];
 
   collectibles = [
-    { x: 360, y: 400 }, { x: 460, y: 400 }, { x: 820, y: 350 },
-    { x: 1225, y: 430 }, { x: 1590, y: 360 }, { x: 1720, y: 360 },
-    { x: 2200, y: 410 }, { x: 2420, y: 560 }, { x: 2840, y: 360 },
-    { x: 3610, y: 340 }, { x: 4390, y: 380 }, { x: 4660, y: 530 }
+    { x: 390, y: 430 }, { x: 705, y: 410 }, { x: 1010, y: 415 },
+    { x: 1250, y: 530 }, { x: 1450, y: 400 }, { x: 1895, y: 420 },
+    { x: 2140, y: 530 }, { x: 2320, y: 400 }, { x: 2770, y: 415 },
+    { x: 3000, y: 530 }, { x: 3200, y: 398 }, { x: 3630, y: 430 }
   ].map((item, i) => ({
     ...item,
     size: 42,
@@ -198,6 +181,29 @@ function resetWorld() {
     bob: Math.random() * Math.PI * 2,
     spriteKey: foodKeys[i % foodKeys.length],
   }));
+
+  finishZone = { x: WORLD_WIDTH - 180, y: 430, w: 120, h: 160 };
+}
+
+function resetWorld(keepHealth = false) {
+  state.started = false;
+  state.ended = false;
+  state.won = false;
+  state.cameraX = 0;
+  state.lastTime = 0;
+  state.portalOpen = false;
+  state.portalPulse = 0;
+  state.transitioning = false;
+  state.transitionTimer = 0;
+  particles.length = 0;
+
+  if (!keepHealth) {
+    state.score = 0;
+    scoreEl.textContent = "0";
+    player.health = 5;
+  }
+
+  makeLevel(state.level);
 
   const startGround = groundSegments[0];
   player.x = 120;
@@ -208,15 +214,26 @@ function resetWorld() {
   player.facing = 1;
   player.frame = 0;
   player.frameTimer = 0;
-  player.health = 5;
   player.invincibleTimer = 0;
   player.spawnX = 120;
   player.spawnY = startGround.y - player.h;
 
-  finishZone = { x: WORLD_WIDTH - 180, y: 420, w: 100, h: 180 };
+  updateHealthHud();
 
   startScreen.classList.remove("hidden");
   endScreen.classList.add("hidden");
+}
+
+function updateHealthHud() {
+  const map = {
+    5: "assets/health_bar/healthbar_5.png",
+    4: "assets/health_bar/healthbar_4.png",
+    3: "assets/health_bar/healthbar_3.png",
+    2: "assets/health_bar/healthbar_2.png",
+    1: "assets/health_bar/healthbar_1.png",
+    0: "assets/health_bar/healthbar_empty.png",
+  };
+  healthUi.src = map[player.health];
 }
 
 function setButtonHold(element, key) {
@@ -296,14 +313,31 @@ function getSolidTiles() {
   return solids;
 }
 
+function spawnSparkles(x, y, count = 12) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 3.4,
+      vy: (Math.random() - 0.9) * 3.2,
+      life: 24 + Math.random() * 12,
+      size: 2 + Math.random() * 2,
+      color: i % 2 === 0 ? "#fff47d" : "#ff8df5"
+    });
+  }
+}
+
 function damagePlayer(amount = 1) {
-  if (player.invincibleTimer > 0 || state.ended) return;
+  if (player.invincibleTimer > 0 || state.ended || state.transitioning) return;
 
   player.health -= amount;
+  if (player.health < 0) player.health = 0;
   player.invincibleTimer = 70;
+  updateHealthHud();
+
+  spawnSparkles(player.x + player.w / 2, player.y + player.h / 2, 14);
 
   if (player.health <= 0) {
-    player.health = 0;
     endGame(false);
     return;
   }
@@ -315,7 +349,7 @@ function damagePlayer(amount = 1) {
 }
 
 function updatePlayer() {
-  if (!state.started || state.ended) return;
+  if (!state.started || state.ended || state.transitioning) return;
 
   let move = 0;
   if (input.left) move -= 1;
@@ -383,12 +417,12 @@ function updatePlayer() {
     }
   }
 
-  if (player.y > HEIGHT + 250) {
+  if (player.y > HEIGHT + 220) {
     damagePlayer(1);
   }
 
   hazards.forEach((hazard) => {
-    if (rectsOverlap(player.x + 16, player.y + 10, player.w - 32, player.h - 18, hazard.x, hazard.y, hazard.w, hazard.h)) {
+    if (rectsOverlap(player.x + 18, player.y + 14, player.w - 36, player.h - 24, hazard.x, hazard.y, hazard.w, hazard.h)) {
       damagePlayer(1);
     }
   });
@@ -399,26 +433,18 @@ function updatePlayer() {
 
     const bobY = item.y + Math.sin(item.bob) * 6;
 
-    if (
-      rectsOverlap(
-        player.x + 18,
-        player.y + 16,
-        player.w - 36,
-        player.h - 28,
-        item.x,
-        bobY,
-        item.size,
-        item.size
-      )
-    ) {
+    if (rectsOverlap(player.x + 18, player.y + 16, player.w - 36, player.h - 28, item.x, bobY, item.size, item.size)) {
       item.collected = true;
       state.score += 10;
       scoreEl.textContent = String(state.score);
+      spawnSparkles(item.x + item.size / 2, bobY + item.size / 2, 12);
     }
   });
 
-  if (rectsOverlap(player.x, player.y, player.w, player.h, finishZone.x, finishZone.y, finishZone.w, finishZone.h)) {
-    endGame(true);
+  state.portalOpen = collectibles.every(item => item.collected);
+
+  if (state.portalOpen && rectsOverlap(player.x, player.y, player.w, player.h, finishZone.x, finishZone.y, finishZone.w, finishZone.h)) {
+    startPortalTransition();
   }
 
   if (player.invincibleTimer > 0) player.invincibleTimer--;
@@ -438,6 +464,39 @@ function updatePlayer() {
   state.cameraX += (targetCamera - state.cameraX) * 0.12;
 }
 
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05;
+    p.life -= 1;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function startPortalTransition() {
+  if (state.transitioning) return;
+  state.transitioning = true;
+  state.transitionTimer = 0;
+  spawnSparkles(finishZone.x + finishZone.w / 2, finishZone.y + finishZone.h / 2, 28);
+}
+
+function updatePortalTransition() {
+  if (!state.transitioning) return;
+
+  state.transitionTimer += 1;
+  if (state.transitionTimer > 50) {
+    if (state.level === 1) {
+      state.level = 2;
+      resetWorld(true);
+      startGame();
+    } else {
+      endGame(true);
+    }
+  }
+}
+
 function drawBackground() {
   bgKeys.forEach((key, i) => {
     const img = images[key];
@@ -447,23 +506,17 @@ function drawBackground() {
     const scale = HEIGHT / img.height;
     const drawWidth = img.width * scale;
     const drawHeight = HEIGHT;
-
     const baseX = -((state.cameraX * speed) % drawWidth);
 
     for (let j = -1; j < 3; j++) {
-      ctx.drawImage(
-        img,
-        baseX + j * drawWidth,
-        HEIGHT - drawHeight,
-        drawWidth,
-        drawHeight
-      );
+      ctx.drawImage(img, baseX + j * drawWidth, HEIGHT - drawHeight, drawWidth, drawHeight);
     }
   });
 }
 
 function drawTiles() {
   const solids = getSolidTiles();
+  const sway = Math.sin(state.grassAnim) * 2;
 
   solids.forEach((tile) => {
     if (tile.x + tile.w < state.cameraX - TILE || tile.x > state.cameraX + WIDTH + TILE) return;
@@ -494,9 +547,15 @@ function drawTiles() {
 
     if (img) {
       ctx.drawImage(img, dx, dy, TILE, TILE);
-    } else {
-      ctx.fillStyle = "#7a4d30";
-      ctx.fillRect(dx, dy, TILE, TILE);
+
+      const isAnimatedTop = tile.type === "floating" || tile.row === 0;
+      if (isAnimatedTop) {
+        ctx.save();
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = "#9eff9e";
+        ctx.fillRect(dx, dy + 4 + sway, TILE, 4);
+        ctx.restore();
+      }
     }
   });
 }
@@ -520,10 +579,9 @@ function drawHazards() {
   hazards.forEach((hazard) => {
     const dx = Math.round(hazard.x - state.cameraX);
     const dy = Math.round(hazard.y);
-
     if (dx < -hazard.w || dx > WIDTH + hazard.w) return;
 
-    ctx.fillStyle = "#5c3a8e";
+    ctx.fillStyle = "#633a90";
     ctx.beginPath();
     ctx.moveTo(dx, dy + hazard.h);
     ctx.lineTo(dx + hazard.w * 0.2, dy);
@@ -537,12 +595,59 @@ function drawHazards() {
   });
 }
 
-function drawFinish() {
-  const dx = Math.round(finishZone.x - state.cameraX);
-  ctx.fillStyle = "#ffe98d";
-  ctx.fillRect(dx + 32, finishZone.y, 8, finishZone.h);
-  ctx.fillStyle = "#ff7ad9";
-  ctx.fillRect(dx + 40, finishZone.y + 10, 40, 26);
+function drawPortal() {
+  const dx = Math.round(finishZone.x - state.cameraX + finishZone.w / 2);
+  const dy = Math.round(finishZone.y + finishZone.h / 2);
+  const pulse = Math.sin(state.portalPulse) * 4;
+  const outer = 34 + pulse;
+  const inner = 20 + pulse * 0.4;
+
+  ctx.save();
+
+  if (!state.portalOpen) {
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = "#7b5ca8";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(dx, dy, outer, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = "#ff7df0";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(dx, dy, outer, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#79f8ff";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(dx, dy, inner, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (let i = 0; i < 6; i++) {
+      const a = state.portalPulse + i * (Math.PI / 3);
+      const px = dx + Math.cos(a) * (outer + 4);
+      const py = dy + Math.sin(a) * (outer + 4);
+      ctx.fillStyle = i % 2 === 0 ? "#fff57c" : "#ffffff";
+      ctx.fillRect(px - 2, py - 2, 4, 4);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawParticles() {
+  particles.forEach((p) => {
+    const dx = Math.round(p.x - state.cameraX);
+    const alpha = Math.max(0, p.life / 30);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(dx, Math.round(p.y), p.size, p.size);
+    ctx.restore();
+  });
 }
 
 function drawPlayer() {
@@ -590,51 +695,40 @@ function drawPlayer() {
   ctx.globalAlpha = 1;
 }
 
-function drawHealthBar() {
-  const keyMap = {
-    5: "hp5",
-    4: "hp4",
-    3: "hp3",
-    2: "hp2",
-    1: "hp1",
-    0: "hpEmpty",
-  };
+function drawTransition() {
+  if (!state.transitioning) return;
 
-  const img = images[keyMap[player.health]];
-  if (!img) return;
-
-  const drawWidth = 150;
-  const scale = drawWidth / img.width;
-  const drawHeight = img.height * scale;
-
-  ctx.drawImage(img, WIDTH - drawWidth - 16, 12, drawWidth, drawHeight);
+  const alpha = Math.min(1, state.transitionTimer / 40);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
 }
 
 function draw() {
-
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
-  // SKY GRADIENT
-  const sky = ctx.createLinearGradient(0,0,0,HEIGHT);
-  sky.addColorStop(0,"#0b1d2e");
-  sky.addColorStop(1,"#cfe8df");
+  const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  sky.addColorStop(0, "#0b1d2e");
+  sky.addColorStop(1, "#cfe8df");
   ctx.fillStyle = sky;
-  ctx.fillRect(0,0,WIDTH,HEIGHT);
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   drawBackground();
   drawTiles();
   drawCollectibles();
   drawHazards();
-  drawFinish();
+  drawPortal();
+  drawParticles();
   drawPlayer();
-  drawHealthBar();
-
+  drawTransition();
 }
 
 function endGame(won) {
   state.ended = true;
   state.won = won;
-  endTitle.textContent = won ? "Level Complete" : "Game Over";
+  endTitle.textContent = won ? "LEVEL CLEAR" : "GAME OVER";
   finalScoreEl.textContent = `Score: ${state.score}`;
   endScreen.classList.remove("hidden");
 }
@@ -647,7 +741,8 @@ function startGame() {
 }
 
 function restartGame() {
-  resetWorld();
+  state.level = 1;
+  resetWorld(false);
   startGame();
 }
 
@@ -656,7 +751,11 @@ function gameLoop(timestamp = 0) {
   state.lastTime = timestamp;
 
   if (state.started && !state.ended) {
+    state.portalPulse += 0.08;
+    state.grassAnim += 0.08;
     updatePlayer(delta);
+    updateParticles();
+    updatePortalTransition();
   }
 
   draw();
@@ -675,7 +774,7 @@ async function init() {
   try {
     await loadAssets();
     setupControls();
-    resetWorld();
+    resetWorld(false);
 
     startBtn.addEventListener("click", startGame);
     restartBtn.addEventListener("click", restartGame);
