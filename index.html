@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Unicorn Run</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="game-shell">
+    <canvas id="game" width="405" height="720" aria-label="Unicorn Run game canvas"></canvas>
+
+    <div id="start-screen" class="overlay visible">
+      <div class="panel">
+        <h1>UNICORN RUN</h1>
+        <p>Simple vertical platformer build</p>
+        <button id="start-btn">Press Start</button>
+        <div class="help">Collect food, avoid hazards, and reach the finish. Touch controls are enabled for iPhone.</div>
+      </div>
+    </div>
+
+    <div id="end-screen" class="overlay hidden">
+      <div class="panel">
+        <h2 id="end-title">Game Over</h2>
+        <p id="final-score">Score: 0</p>
+        <button id="restart-btn">Play Again</button>
+      </div>
+    </div>
+
+    <div id="hud">
+      <div class="hud-row">
+        <div class="hud-pill">Score: <span id="score">0</span></div>
+      </div>
+      <div class="health-wrap">
+        <img id="health-bar" src="assets/health_bar/healthbar_5.png" alt="Health bar" />
+      </div>
+    </div>
+
+    <div id="touch-controls">
+      <button id="left-btn" class="control" aria-label="Move left"></button>
+      <button id="jump-btn" class="control jump" aria-label="Jump"></button>
+      <button id="right-btn" class="control" aria-label="Move right"></button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
