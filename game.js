@@ -82,8 +82,22 @@ const foodKeys = [
   "lemon", "peach", "pear", "pineapple", "strawberry", "watermelon"
 ];
 
-const bgKeys = ["bg1", "bg2", "bg3", "bg4", "bg5", "bg6"];
-const bgSpeeds = [0.05, 0.09, 0.14, 0.22, 0.32, 0.45];
+const bgKeys = [
+   "bg6",
+  "bg5",
+  "bg4",
+  "bg3",
+  "bg2",
+  "bg1"
+];
+const bgSpeeds = [
+  0.02,
+  0.05,
+  0.09,
+  0.15,
+  0.25,
+  0.4
+];
 
 function loadImage(key, src) {
   return new Promise((resolve, reject) => {
@@ -597,7 +611,16 @@ function drawHealthBar() {
 }
 
 function draw() {
+
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+  // SKY GRADIENT
+  const sky = ctx.createLinearGradient(0,0,0,HEIGHT);
+  sky.addColorStop(0,"#0b1d2e");
+  sky.addColorStop(1,"#cfe8df");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,WIDTH,HEIGHT);
+
   drawBackground();
   drawTiles();
   drawCollectibles();
@@ -605,6 +628,7 @@ function draw() {
   drawFinish();
   drawPlayer();
   drawHealthBar();
+
 }
 
 function endGame(won) {
