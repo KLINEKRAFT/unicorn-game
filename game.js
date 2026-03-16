@@ -1,23 +1,21 @@
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = false;
 
-const startScreen = document.getElementById('start-screen');
-const endScreen = document.getElementById('end-screen');
-const endTitle = document.getElementById('end-title');
-const startBtn = document.getElementById('start-btn');
-const restartBtn = document.getElementById('restart-btn');
-const scoreEl = document.getElementById('score');
-const finalScoreEl = document.getElementById('final-score');
-const healthBarEl = document.getElementById('health-bar');
+const startScreen = document.getElementById("start-screen");
+const endScreen = document.getElementById("end-screen");
+const startBtn = document.getElementById("start-btn");
+const restartBtn = document.getElementById("restart-btn");
+const endTitle = document.getElementById("end-title");
+const scoreEl = document.getElementById("score");
+const finalScoreEl = document.getElementById("final-score");
 
 const WIDTH = canvas.width;
 const HEIGHT = canvas.height;
 const TILE = 64;
-const WORLD_WIDTH = 5056;
-const GRAVITY = 0.52;
-const MAX_HEALTH = 5;
-const RESPAWN_INVULN_MS = 1400;
+const WORLD_WIDTH = 5000;
+const GRAVITY = 0.55;
+const MAX_FALL = 15;
 
 const input = {
   left: false,
@@ -27,48 +25,65 @@ const input = {
 };
 
 const state = {
-  running: false,
+  started: false,
   ended: false,
+  won: false,
   score: 0,
   cameraX: 0,
-  health: MAX_HEALTH,
-  damageFlash: 0,
+  lastTime: 0,
 };
 
 const images = {};
+
 const assetPaths = {
-  sprite: 'assets/unicorn_run.png',
-  bg1: 'assets/background/background_layer_1.png',
-  bg2: 'assets/background/background_layer_2.png',
-  bg3: 'assets/background/background_layer_3.png',
-  bg4: 'assets/background/background_layer_4.png',
-  bg5: 'assets/background/background_layer_5.png',
-  bg6: 'assets/background/background_layer_6.png',
-  tileTopLeft: 'assets/dirt_tiles/tile_top_left.png',
-  tileTopCenter: 'assets/dirt_tiles/tile_top_center.png',
-  tileTopRight: 'assets/dirt_tiles/tile_top_right.png',
-  tileMiddleLeft: 'assets/dirt_tiles/tile_middle_left.png',
-  tileMiddleCenter: 'assets/dirt_tiles/tile_middle_center.png',
-  tileMiddleRight: 'assets/dirt_tiles/tile_middle_right.png',
-  tileBottomLeft: 'assets/dirt_tiles/tile_bottom_left.png',
-  tileBottomCenter: 'assets/dirt_tiles/tile_bottom_center.png',
-  tileBottomRight: 'assets/dirt_tiles/tile_bottom_right.png',
-  tileFloating: 'assets/dirt_tiles/tile_floating.png',
-  apple: 'assets/food/apple.png',
-  banana: 'assets/food/banana.png',
-  cherry: 'assets/food/cherry.png',
-  grape: 'assets/food/grape.png',
-  kiwi: 'assets/food/kiwi.png',
-  lemon: 'assets/food/lemon.png',
-  peach: 'assets/food/peach.png',
-  pear: 'assets/food/pear.png',
-  pineapple: 'assets/food/pineapple.png',
-  strawberry: 'assets/food/strawberry.png',
-  watermelon: 'assets/food/watermelon.png',
-  avacado: 'assets/food/avacado.png',
+  player: "assets/unicorn_run.png",
+
+  bg1: "assets/background/background_layer_1.png",
+  bg2: "assets/background/background_layer_2.png",
+  bg3: "assets/background/background_layer_3.png",
+  bg4: "assets/background/background_layer_4.png",
+  bg5: "assets/background/background_layer_5.png",
+  bg6: "assets/background/background_layer_6.png",
+
+  tile_top_left: "assets/dirt_tiles/tile_top_left.png",
+  tile_top_center: "assets/dirt_tiles/tile_top_center.png",
+  tile_top_right: "assets/dirt_tiles/tile_top_right.png",
+  tile_middle_left: "assets/dirt_tiles/tile_middle_left.png",
+  tile_middle_center: "assets/dirt_tiles/tile_middle_center.png",
+  tile_middle_right: "assets/dirt_tiles/tile_middle_right.png",
+  tile_bottom_left: "assets/dirt_tiles/tile_bottom_left.png",
+  tile_bottom_center: "assets/dirt_tiles/tile_bottom_center.png",
+  tile_bottom_right: "assets/dirt_tiles/tile_bottom_right.png",
+  tile_floating: "assets/dirt_tiles/tile_floating.png",
+
+  apple: "assets/food/apple.png",
+  avacado: "assets/food/avacado.png",
+  banana: "assets/food/banana.png",
+  cherry: "assets/food/cherry.png",
+  grape: "assets/food/grape.png",
+  kiwi: "assets/food/kiwi.png",
+  lemon: "assets/food/lemon.png",
+  peach: "assets/food/peach.png",
+  pear: "assets/food/pear.png",
+  pineapple: "assets/food/pineapple.png",
+  strawberry: "assets/food/strawberry.png",
+  watermelon: "assets/food/watermelon.png",
+
+  hp1: "assets/health_bar/healthbar_1.png",
+  hp2: "assets/health_bar/healthbar_2.png",
+  hp3: "assets/health_bar/healthbar_3.png",
+  hp4: "assets/health_bar/healthbar_4.png",
+  hp5: "assets/health_bar/healthbar_5.png",
+  hpEmpty: "assets/health_bar/healthbar_empty.png",
 };
 
-const foodKeys = ['apple', 'banana', 'cherry', 'grape', 'kiwi', 'lemon', 'peach', 'pear', 'pineapple', 'strawberry', 'watermelon', 'avacado'];
+const foodKeys = [
+  "apple", "avacado", "banana", "cherry", "grape", "kiwi",
+  "lemon", "peach", "pear", "pineapple", "strawberry", "watermelon"
+];
+
+const bgKeys = ["bg1", "bg2", "bg3", "bg4", "bg5", "bg6"];
+const bgSpeeds = [0.05, 0.09, 0.14, 0.22, 0.32, 0.45];
 
 function loadImage(key, src) {
   return new Promise((resolve, reject) => {
@@ -83,7 +98,8 @@ function loadImage(key, src) {
 }
 
 async function loadAssets() {
-  await Promise.all(Object.entries(assetPaths).map(([key, src]) => loadImage(key, src)));
+  const promises = Object.entries(assetPaths).map(([key, src]) => loadImage(key, src));
+  await Promise.all(promises);
 }
 
 const player = {
@@ -96,148 +112,197 @@ const player = {
   speed: 4.4,
   jumpPower: 12.8,
   grounded: false,
+  facing: 1,
   frame: 0,
   frameTimer: 0,
-  facing: 1,
-  invulnerableUntil: 0,
   spawnX: 120,
   spawnY: 0,
+  health: 5,
+  invincibleTimer: 0,
 };
 
 let groundSegments = [];
-let platforms = [];
-let collectibles = [];
+let floatingPlatforms = [];
 let hazards = [];
-let finishZone = { x: WORLD_WIDTH - 200, y: 0, w: 80, h: 180 };
+let collectibles = [];
+let finishZone = { x: WORLD_WIDTH - 260, y: 420, w: 100, h: 180 };
 
-function buildLevel() {
+function resetWorld() {
+  state.started = false;
+  state.ended = false;
+  state.won = false;
+  state.score = 0;
+  state.cameraX = 0;
+  state.lastTime = 0;
+  scoreEl.textContent = "0";
+
   groundSegments = [
-    { x: 0, y: 608, width: 6, height: 2 },
-    { x: 448, y: 576, width: 4, height: 3 },
-    { x: 832, y: 640, width: 3, height: 2 },
-    { x: 1152, y: 576, width: 5, height: 3 },
-    { x: 1664, y: 608, width: 4, height: 2 },
-    { x: 2048, y: 544, width: 5, height: 4 },
-    { x: 2624, y: 608, width: 4, height: 2 },
-    { x: 3008, y: 544, width: 5, height: 4 },
-    { x: 3584, y: 608, width: 4, height: 2 },
-    { x: 3968, y: 576, width: 5, height: 3 },
-    { x: 4544, y: 608, width: 6, height: 2 },
+    { x: 0, y: 592, width: 7, height: 3 },
+    { x: 520, y: 640, width: 2, height: 2 },
+    { x: 710, y: 610, width: 4, height: 3 },
+    { x: 1090, y: 670, width: 2, height: 2 },
+    { x: 1300, y: 590, width: 5, height: 3 },
+    { x: 1850, y: 645, width: 2, height: 2 },
+    { x: 2040, y: 610, width: 4, height: 3 },
+    { x: 2460, y: 680, width: 2, height: 2 },
+    { x: 2660, y: 600, width: 5, height: 3 },
+    { x: 3240, y: 640, width: 2, height: 2 },
+    { x: 3440, y: 590, width: 5, height: 3 },
+    { x: 4040, y: 635, width: 2, height: 2 },
+    { x: 4240, y: 600, width: 6, height: 3 }
   ];
 
-  platforms = [
-    { x: 300, y: 468, width: 2 },
-    { x: 704, y: 428, width: 2 },
-    { x: 1280, y: 448, width: 2 },
-    { x: 1520, y: 384, width: 2 },
-    { x: 1920, y: 470, width: 2 },
-    { x: 2368, y: 404, width: 3 },
-    { x: 2890, y: 390, width: 2 },
-    { x: 3328, y: 456, width: 2 },
-    { x: 3872, y: 392, width: 2 },
-    { x: 4256, y: 352, width: 2 },
+  floatingPlatforms = [
+    { x: 300, y: 470, width: 2 },
+    { x: 760, y: 420, width: 2 },
+    { x: 1180, y: 500, width: 2 },
+    { x: 1530, y: 430, width: 2 },
+    { x: 2140, y: 470, width: 2 },
+    { x: 2780, y: 430, width: 2 },
+    { x: 3560, y: 410, width: 2 },
+    { x: 4320, y: 445, width: 2 }
   ];
 
   hazards = [
-    { x: 980, y: 608, w: 72, h: 32 },
-    { x: 2250, y: 512, w: 72, h: 32 },
-    { x: 3230, y: 512, w: 72, h: 32 },
-    { x: 4130, y: 544, w: 72, h: 32 },
+    { x: 640, y: 610, w: 60, h: 34 },
+    { x: 1235, y: 640, w: 60, h: 34 },
+    { x: 1980, y: 615, w: 60, h: 34 },
+    { x: 2610, y: 650, w: 60, h: 34 },
+    { x: 3360, y: 615, w: 60, h: 34 },
+    { x: 4180, y: 625, w: 60, h: 34 }
   ];
 
   collectibles = [
-    { x: 340, y: 404 },
-    { x: 468, y: 530 },
-    { x: 754, y: 364 },
-    { x: 1290, y: 384 },
-    { x: 1540, y: 320 },
-    { x: 1758, y: 542 },
-    { x: 1960, y: 406 },
-    { x: 2432, y: 338 },
-    { x: 2762, y: 548 },
-    { x: 2940, y: 324 },
-    { x: 3380, y: 390 },
-    { x: 3902, y: 326 },
-    { x: 4296, y: 286 },
-    { x: 4728, y: 544 },
-  ].map((item, index) => ({
+    { x: 360, y: 400 }, { x: 460, y: 400 }, { x: 820, y: 350 },
+    { x: 1225, y: 430 }, { x: 1590, y: 360 }, { x: 1720, y: 360 },
+    { x: 2200, y: 410 }, { x: 2420, y: 560 }, { x: 2840, y: 360 },
+    { x: 3610, y: 340 }, { x: 4390, y: 380 }, { x: 4660, y: 530 }
+  ].map((item, i) => ({
     ...item,
     size: 42,
     collected: false,
     bob: Math.random() * Math.PI * 2,
-    spriteKey: foodKeys[index % foodKeys.length],
+    spriteKey: foodKeys[i % foodKeys.length],
   }));
 
-  finishZone = { x: WORLD_WIDTH - 240, y: 398, w: 90, h: 200 };
-}
-
-function resetWorld() {
-  state.running = false;
-  state.ended = false;
-  state.score = 0;
-  state.cameraX = 0;
-  state.health = MAX_HEALTH;
-  state.damageFlash = 0;
-  scoreEl.textContent = '0';
-  updateHealthBar();
-
-  buildLevel();
-
+  const startGround = groundSegments[0];
   player.x = 120;
-  player.y = groundSegments[0].y - player.h;
+  player.y = startGround.y - player.h;
   player.vx = 0;
   player.vy = 0;
   player.grounded = false;
+  player.facing = 1;
   player.frame = 0;
   player.frameTimer = 0;
-  player.facing = 1;
-  player.invulnerableUntil = 0;
+  player.health = 5;
+  player.invincibleTimer = 0;
   player.spawnX = 120;
-  player.spawnY = groundSegments[0].y - player.h;
+  player.spawnY = startGround.y - player.h;
 
-  endScreen.classList.add('hidden');
-  startScreen.classList.remove('hidden');
+  finishZone = { x: WORLD_WIDTH - 180, y: 420, w: 100, h: 180 };
+
+  startScreen.classList.remove("hidden");
+  endScreen.classList.add("hidden");
 }
 
 function setButtonHold(element, key) {
   const onDown = (event) => {
     event.preventDefault();
     input[key] = true;
-    if (key === 'jump') input.jumpPressed = true;
+    if (key === "jump") input.jumpPressed = true;
   };
+
   const onUp = (event) => {
     event.preventDefault();
     input[key] = false;
   };
 
-  element.addEventListener('pointerdown', onDown);
-  element.addEventListener('pointerup', onUp);
-  element.addEventListener('pointerleave', onUp);
-  element.addEventListener('pointercancel', onUp);
+  element.addEventListener("pointerdown", onDown);
+  element.addEventListener("pointerup", onUp);
+  element.addEventListener("pointerleave", onUp);
+  element.addEventListener("pointercancel", onUp);
 }
 
 function setupControls() {
-  setButtonHold(document.getElementById('left-btn'), 'left');
-  setButtonHold(document.getElementById('right-btn'), 'right');
-  setButtonHold(document.getElementById('jump-btn'), 'jump');
+  setButtonHold(document.getElementById("left-btn"), "left");
+  setButtonHold(document.getElementById("right-btn"), "right");
+  setButtonHold(document.getElementById("jump-btn"), "jump");
 
-  window.addEventListener('keydown', (event) => {
-    if (event.code === 'ArrowLeft' || event.code === 'KeyA') input.left = true;
-    if (event.code === 'ArrowRight' || event.code === 'KeyD') input.right = true;
-    if (event.code === 'ArrowUp' || event.code === 'Space' || event.code === 'KeyW') {
+  window.addEventListener("keydown", (event) => {
+    if (event.code === "ArrowLeft" || event.code === "KeyA") input.left = true;
+    if (event.code === "ArrowRight" || event.code === "KeyD") input.right = true;
+    if (event.code === "ArrowUp" || event.code === "KeyW" || event.code === "Space") {
       if (!input.jump) input.jumpPressed = true;
       input.jump = true;
     }
   });
 
-  window.addEventListener('keyup', (event) => {
-    if (event.code === 'ArrowLeft' || event.code === 'KeyA') input.left = false;
-    if (event.code === 'ArrowRight' || event.code === 'KeyD') input.right = false;
-    if (event.code === 'ArrowUp' || event.code === 'Space' || event.code === 'KeyW') input.jump = false;
+  window.addEventListener("keyup", (event) => {
+    if (event.code === "ArrowLeft" || event.code === "KeyA") input.left = false;
+    if (event.code === "ArrowRight" || event.code === "KeyD") input.right = false;
+    if (event.code === "ArrowUp" || event.code === "KeyW" || event.code === "Space") input.jump = false;
   });
 }
 
+function getSolidTiles() {
+  const solids = [];
+
+  groundSegments.forEach((seg) => {
+    for (let c = 0; c < seg.width; c++) {
+      for (let r = 0; r < seg.height; r++) {
+        solids.push({
+          x: seg.x + c * TILE,
+          y: seg.y + r * TILE,
+          w: TILE,
+          h: TILE,
+          type: "ground",
+          col: c,
+          row: r,
+          segWidth: seg.width,
+          segHeight: seg.height
+        });
+      }
+    }
+  });
+
+  floatingPlatforms.forEach((plat) => {
+    for (let c = 0; c < plat.width; c++) {
+      solids.push({
+        x: plat.x + c * TILE,
+        y: plat.y,
+        w: TILE,
+        h: TILE,
+        type: "floating",
+        col: c,
+        segWidth: plat.width
+      });
+    }
+  });
+
+  return solids;
+}
+
+function damagePlayer(amount = 1) {
+  if (player.invincibleTimer > 0 || state.ended) return;
+
+  player.health -= amount;
+  player.invincibleTimer = 70;
+
+  if (player.health <= 0) {
+    player.health = 0;
+    endGame(false);
+    return;
+  }
+
+  player.x = player.spawnX;
+  player.y = player.spawnY;
+  player.vx = 0;
+  player.vy = 0;
+}
+
 function updatePlayer() {
+  if (!state.started || state.ended) return;
+
   let move = 0;
   if (input.left) move -= 1;
   if (input.right) move += 1;
@@ -256,96 +321,98 @@ function updatePlayer() {
   }
 
   player.vy += GRAVITY;
+  if (player.vy > MAX_FALL) player.vy = MAX_FALL;
+
+  const prevX = player.x;
+  const prevY = player.y;
+
   player.x += player.vx;
   player.y += player.vy;
   player.grounded = false;
 
-  const solids = [];
-
-  groundSegments.forEach((seg) => {
-    for (let c = 0; c < seg.width; c++) {
-      for (let r = 0; r < seg.height; r++) {
-        solids.push({ x: seg.x + c * TILE, y: seg.y + r * TILE, w: TILE, h: TILE });
-      }
-    }
-  });
-
-  platforms.forEach((plat) => {
-    for (let c = 0; c < plat.width; c++) {
-      solids.push({ x: plat.x + c * TILE, y: plat.y, w: TILE, h: TILE });
-    }
-  });
+  const solids = getSolidTiles();
 
   for (const tile of solids) {
     if (!rectsOverlap(player.x, player.y, player.w, player.h, tile.x, tile.y, tile.w, tile.h)) continue;
 
-    const prevBottom = player.y - player.vy + player.h;
-    const prevTop = player.y - player.vy;
-    const prevRight = player.x - player.vx + player.w;
-    const prevLeft = player.x - player.vx;
+    const prevBottom = prevY + player.h;
+    const prevTop = prevY;
+    const prevRight = prevX + player.w;
+    const prevLeft = prevX;
 
-    if (prevBottom <= tile.y + 8 && player.vy >= 0) {
+    if (prevBottom <= tile.y + 10 && player.vy >= 0) {
       player.y = tile.y - player.h;
       player.vy = 0;
       player.grounded = true;
+
+      if (tile.type === "ground" && tile.row === 0) {
+        player.spawnX = Math.max(tile.x - 10, 40);
+        player.spawnY = tile.y - player.h;
+      }
       continue;
     }
 
-    if (prevTop >= tile.y + tile.h - 8 && player.vy < 0) {
+    if (prevTop >= tile.y + tile.h - 10 && player.vy < 0) {
       player.y = tile.y + tile.h;
       player.vy = 0;
       continue;
     }
 
-    if (prevRight <= tile.x + 8 && player.vx > 0) {
+    if (prevRight <= tile.x + 10 && player.vx > 0) {
       player.x = tile.x - player.w;
       continue;
     }
 
-    if (prevLeft >= tile.x + tile.w - 8 && player.vx < 0) {
+    if (prevLeft >= tile.x + tile.w - 10 && player.vx < 0) {
       player.x = tile.x + tile.w;
       continue;
     }
   }
 
-  const now = performance.now();
+  if (player.y > HEIGHT + 250) {
+    damagePlayer(1);
+  }
 
   hazards.forEach((hazard) => {
-    if (rectsOverlap(player.x + 12, player.y + 12, player.w - 24, player.h - 20, hazard.x, hazard.y, hazard.w, hazard.h)) {
-      if (now > player.invulnerableUntil) {
-        applyDamage(1);
-      }
+    if (rectsOverlap(player.x + 16, player.y + 10, player.w - 32, player.h - 18, hazard.x, hazard.y, hazard.w, hazard.h)) {
+      damagePlayer(1);
     }
   });
 
   collectibles.forEach((item) => {
     item.bob += 0.08;
     if (item.collected) return;
+
     const bobY = item.y + Math.sin(item.bob) * 6;
-    if (rectsOverlap(player.x + 18, player.y + 16, player.w - 36, player.h - 28, item.x, bobY, item.size, item.size)) {
+
+    if (
+      rectsOverlap(
+        player.x + 18,
+        player.y + 16,
+        player.w - 36,
+        player.h - 28,
+        item.x,
+        bobY,
+        item.size,
+        item.size
+      )
+    ) {
       item.collected = true;
       state.score += 10;
       scoreEl.textContent = String(state.score);
     }
   });
 
-  updateCheckpoint();
-
-  if (player.y > HEIGHT + 220) {
-    applyDamage(1, true);
-  }
-
-  player.x = clamp(player.x, 0, WORLD_WIDTH - player.w);
-
   if (rectsOverlap(player.x, player.y, player.w, player.h, finishZone.x, finishZone.y, finishZone.w, finishZone.h)) {
-    endRun(true);
-    return;
+    endGame(true);
   }
+
+  if (player.invincibleTimer > 0) player.invincibleTimer--;
 
   if (Math.abs(player.vx) > 0.1 || !player.grounded) {
     player.frameTimer += 1;
     if (player.frameTimer > 5) {
-      player.frame = (player.frame + 1) % 12;
+      player.frame = (player.frame + 1) % 6;
       player.frameTimer = 0;
     }
   } else {
@@ -353,141 +420,69 @@ function updatePlayer() {
     player.frameTimer = 0;
   }
 
-  const targetCamera = clamp(player.x - WIDTH * 0.38, 0, WORLD_WIDTH - WIDTH);
+  const targetCamera = clamp(player.x - WIDTH * 0.35, 0, WORLD_WIDTH - WIDTH);
   state.cameraX += (targetCamera - state.cameraX) * 0.12;
 }
 
-function updateCheckpoint() {
-  for (const seg of groundSegments) {
-    const segCenter = seg.x + (seg.width * TILE) * 0.5;
-    if (player.x > segCenter && seg.x > player.spawnX + 160) {
-      player.spawnX = seg.x + 24;
-      player.spawnY = seg.y - player.h;
-    }
-  }
-}
-
-function applyDamage(amount, forceRespawn = false) {
-  state.health = Math.max(0, state.health - amount);
-  state.damageFlash = 10;
-  updateHealthBar();
-
-  if (state.health <= 0) {
-    endRun(false);
-    return;
-  }
-
-  respawnPlayer(forceRespawn);
-}
-
-function respawnPlayer(forceRespawn) {
-  player.x = player.spawnX;
-  player.y = player.spawnY;
-  player.vx = 0;
-  player.vy = 0;
-  player.grounded = false;
-  player.invulnerableUntil = performance.now() + RESPAWN_INVULN_MS;
-  if (forceRespawn) {
-    state.cameraX = clamp(player.x - WIDTH * 0.3, 0, WORLD_WIDTH - WIDTH);
-  }
-}
-
-function updateHealthBar() {
-  const key = state.health <= 0 ? 'empty' : String(state.health);
-  const filename = key === 'empty' ? 'healthbar_empty.png' : `healthbar_${key}.png`;
-  healthBarEl.src = `assets/health_bar/${filename}`;
-}
-
-function draw() {
-  ctx.clearRect(0, 0, WIDTH, HEIGHT);
-  drawBackground();
-  drawWorld();
-  drawHazards();
-  drawCollectibles();
-  drawFinishFlag();
-  drawPlayer();
-  if (state.damageFlash > 0) drawDamageFlash();
-}
-
 function drawBackground() {
-  const layers = [
-    { key: 'bg1', speed: 0.08, y: 0, h: HEIGHT },
-    { key: 'bg2', speed: 0.14, y: 0, h: HEIGHT },
-    { key: 'bg3', speed: 0.22, y: 10, h: HEIGHT - 10 },
-    { key: 'bg4', speed: 0.32, y: 80, h: HEIGHT - 80 },
-    { key: 'bg5', speed: 0.5, y: 160, h: HEIGHT - 120 },
-    { key: 'bg6', speed: 0.72, y: 250, h: HEIGHT - 110 },
-  ];
+  bgKeys.forEach((key, i) => {
+    const img = images[key];
+    if (!img || !img.width || !img.height) return;
 
-  layers.forEach((layer) => {
-    const img = images[layer.key];
-    const drawWidth = img.width * (layer.h / img.height);
-    let x = -(state.cameraX * layer.speed) % drawWidth;
-    if (x > 0) x -= drawWidth;
-    for (; x < WIDTH; x += drawWidth) {
-      ctx.drawImage(img, x, layer.y, drawWidth, layer.h);
+    const speed = bgSpeeds[i];
+    const scale = HEIGHT / img.height;
+    const drawWidth = img.width * scale;
+    const drawHeight = HEIGHT;
+
+    const baseX = -((state.cameraX * speed) % drawWidth);
+
+    for (let j = -1; j < 3; j++) {
+      ctx.drawImage(
+        img,
+        baseX + j * drawWidth,
+        HEIGHT - drawHeight,
+        drawWidth,
+        drawHeight
+      );
     }
   });
 }
 
-function drawWorld() {
-  groundSegments.forEach((seg) => drawGroundBlock(seg));
-  platforms.forEach((plat) => drawPlatform(plat));
-}
+function drawTiles() {
+  const solids = getSolidTiles();
 
-function drawGroundBlock(seg) {
-  for (let c = 0; c < seg.width; c++) {
-    for (let r = 0; r < seg.height; r++) {
-      let key = 'tileMiddleCenter';
-      const top = r === 0;
-      const bottom = r === seg.height - 1;
-      const left = c === 0;
-      const right = c === seg.width - 1;
+  solids.forEach((tile) => {
+    if (tile.x + tile.w < state.cameraX - TILE || tile.x > state.cameraX + WIDTH + TILE) return;
 
-      if (top && left) key = 'tileTopLeft';
-      else if (top && right) key = 'tileTopRight';
-      else if (top) key = 'tileTopCenter';
-      else if (bottom && left) key = 'tileBottomLeft';
-      else if (bottom && right) key = 'tileBottomRight';
-      else if (bottom) key = 'tileBottomCenter';
-      else if (left) key = 'tileMiddleLeft';
-      else if (right) key = 'tileMiddleRight';
+    const dx = Math.round(tile.x - state.cameraX);
+    const dy = Math.round(tile.y);
 
-      drawTile(images[key], seg.x + c * TILE - state.cameraX, seg.y + r * TILE, TILE, TILE);
+    let img;
+
+    if (tile.type === "floating") {
+      img = images.tile_floating;
+    } else {
+      const isTop = tile.row === 0;
+      const isBottom = tile.row === tile.segHeight - 1;
+      const isLeft = tile.col === 0;
+      const isRight = tile.col === tile.segWidth - 1;
+
+      if (isTop && isLeft) img = images.tile_top_left;
+      else if (isTop && isRight) img = images.tile_top_right;
+      else if (isTop) img = images.tile_top_center;
+      else if (isBottom && isLeft) img = images.tile_bottom_left;
+      else if (isBottom && isRight) img = images.tile_bottom_right;
+      else if (isBottom) img = images.tile_bottom_center;
+      else if (isLeft) img = images.tile_middle_left;
+      else if (isRight) img = images.tile_middle_right;
+      else img = images.tile_middle_center;
     }
-  }
-}
 
-function drawPlatform(plat) {
-  for (let c = 0; c < plat.width; c++) {
-    drawTile(images.tileFloating, plat.x + c * TILE - state.cameraX, plat.y, TILE, TILE);
-  }
-}
-
-function drawTile(img, x, y, w, h) {
-  if (x + w < 0 || x > WIDTH) return;
-  ctx.drawImage(img, x, y, w, h);
-}
-
-function drawHazards() {
-  hazards.forEach((hazard) => {
-    const x = hazard.x - state.cameraX;
-    if (x < -hazard.w || x > WIDTH + hazard.w) return;
-
-    ctx.fillStyle = '#4f1f54';
-    ctx.fillRect(x, hazard.y + 10, hazard.w, 18);
-    for (let i = 0; i < 4; i++) {
-      const spikeX = x + i * (hazard.w / 4);
-      ctx.fillStyle = '#ff75aa';
-      ctx.beginPath();
-      ctx.moveTo(spikeX + 8, hazard.y + 28);
-      ctx.lineTo(spikeX + 18, hazard.y);
-      ctx.lineTo(spikeX + 28, hazard.y + 28);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#fff1f6';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    if (img) {
+      ctx.drawImage(img, dx, dy, TILE, TILE);
+    } else {
+      ctx.fillStyle = "#7a4d30";
+      ctx.fillRect(dx, dy, TILE, TILE);
     }
   });
 }
@@ -495,70 +490,151 @@ function drawHazards() {
 function drawCollectibles() {
   collectibles.forEach((item) => {
     if (item.collected) return;
-    const x = item.x - state.cameraX;
-    if (x < -item.size || x > WIDTH + item.size) return;
-    const y = item.y + Math.sin(item.bob) * 6;
-    ctx.drawImage(images[item.spriteKey], x, y, item.size, item.size);
+    const img = images[item.spriteKey];
+    if (!img) return;
+
+    const bobY = item.y + Math.sin(item.bob) * 6;
+    const dx = Math.round(item.x - state.cameraX);
+    const dy = Math.round(bobY);
+
+    if (dx < -item.size || dx > WIDTH + item.size) return;
+    ctx.drawImage(img, dx, dy, item.size, item.size);
   });
 }
 
-function drawFinishFlag() {
-  const x = finishZone.x - state.cameraX;
-  if (x < -100 || x > WIDTH + 100) return;
+function drawHazards() {
+  hazards.forEach((hazard) => {
+    const dx = Math.round(hazard.x - state.cameraX);
+    const dy = Math.round(hazard.y);
 
-  ctx.fillStyle = '#5b4125';
-  ctx.fillRect(x + 40, finishZone.y - 118, 8, 180);
-  ctx.fillStyle = '#ffe65a';
-  ctx.beginPath();
-  ctx.moveTo(x + 48, finishZone.y - 112);
-  ctx.lineTo(x + 120, finishZone.y - 86);
-  ctx.lineTo(x + 48, finishZone.y - 60);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#2c1f10';
-  ctx.font = 'bold 14px Arial';
-  ctx.fillText('FINISH', x + 28, finishZone.y - 126);
+    if (dx < -hazard.w || dx > WIDTH + hazard.w) return;
+
+    ctx.fillStyle = "#5c3a8e";
+    ctx.beginPath();
+    ctx.moveTo(dx, dy + hazard.h);
+    ctx.lineTo(dx + hazard.w * 0.2, dy);
+    ctx.lineTo(dx + hazard.w * 0.4, dy + hazard.h);
+    ctx.lineTo(dx + hazard.w * 0.6, dy);
+    ctx.lineTo(dx + hazard.w * 0.8, dy + hazard.h);
+    ctx.lineTo(dx + hazard.w, dy);
+    ctx.lineTo(dx + hazard.w, dy + hazard.h);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+function drawFinish() {
+  const dx = Math.round(finishZone.x - state.cameraX);
+  ctx.fillStyle = "#ffe98d";
+  ctx.fillRect(dx + 32, finishZone.y, 8, finishZone.h);
+  ctx.fillStyle = "#ff7ad9";
+  ctx.fillRect(dx + 40, finishZone.y + 10, 40, 26);
 }
 
 function drawPlayer() {
-  const sprite = images.sprite;
-  const cols = 6;
+  if (!images.player) return;
+
+  const sprite = images.player;
+  const columns = 6;
   const rows = 6;
-  const frameWidth = sprite.width / cols;
+  const frameWidth = sprite.width / columns;
   const frameHeight = sprite.height / rows;
-  let frameIndex = player.frame;
-  if (!player.grounded) frameIndex = 7;
-  const sx = (frameIndex % cols) * frameWidth;
-  const sy = Math.floor(frameIndex / cols) * frameHeight;
 
-  ctx.save();
-  const drawX = Math.round(player.x - state.cameraX + player.w / 2);
-  const drawY = Math.round(player.y + player.h / 2);
-  ctx.translate(drawX, drawY);
-  ctx.scale(player.facing, 1);
-  if (performance.now() < player.invulnerableUntil) {
-    ctx.globalAlpha = Math.floor(performance.now() / 80) % 2 === 0 ? 0.45 : 0.9;
+  let frameX = player.frame;
+  let frameY = 0;
+
+  if (!player.grounded) {
+    frameX = 2;
+    frameY = player.facing >= 0 ? 0 : 1;
+  } else if (Math.abs(player.vx) > 0.1) {
+    frameY = player.facing >= 0 ? 0 : 1;
+    frameX = player.frame % columns;
+  } else {
+    frameX = 0;
+    frameY = player.facing >= 0 ? 0 : 1;
   }
-  ctx.drawImage(sprite, sx, sy, frameWidth, frameHeight, -player.w / 2, -player.h / 2, player.w, player.h);
-  ctx.restore();
+
+  const dx = Math.round(player.x - state.cameraX);
+  const dy = Math.round(player.y);
+
+  if (player.invincibleTimer > 0 && Math.floor(player.invincibleTimer / 5) % 2 === 0) {
+    ctx.globalAlpha = 0.6;
+  }
+
+  ctx.drawImage(
+    sprite,
+    frameX * frameWidth,
+    frameY * frameHeight,
+    frameWidth,
+    frameHeight,
+    dx,
+    dy,
+    player.w,
+    player.h
+  );
+
+  ctx.globalAlpha = 1;
 }
 
-function drawDamageFlash() {
-  ctx.fillStyle = 'rgba(255, 60, 120, 0.18)';
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+function drawHealthBar() {
+  const keyMap = {
+    5: "hp5",
+    4: "hp4",
+    3: "hp3",
+    2: "hp2",
+    1: "hp1",
+    0: "hpEmpty",
+  };
+
+  const img = images[keyMap[player.health]];
+  if (!img) return;
+
+  const drawWidth = 150;
+  const scale = drawWidth / img.width;
+  const drawHeight = img.height * scale;
+
+  ctx.drawImage(img, WIDTH - drawWidth - 16, 12, drawWidth, drawHeight);
 }
 
-function endRun(won) {
-  state.running = false;
+function draw() {
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+  drawBackground();
+  drawTiles();
+  drawCollectibles();
+  drawHazards();
+  drawFinish();
+  drawPlayer();
+  drawHealthBar();
+}
+
+function endGame(won) {
   state.ended = true;
-  endTitle.textContent = won ? 'Level Complete' : 'Game Over';
+  state.won = won;
+  endTitle.textContent = won ? "Level Complete" : "Game Over";
   finalScoreEl.textContent = `Score: ${state.score}`;
-  endScreen.classList.remove('hidden');
+  endScreen.classList.remove("hidden");
 }
 
-function gameLoop() {
-  if (state.running) updatePlayer();
-  if (state.damageFlash > 0) state.damageFlash -= 1;
+function startGame() {
+  startScreen.classList.add("hidden");
+  endScreen.classList.add("hidden");
+  state.started = true;
+  state.ended = false;
+}
+
+function restartGame() {
+  resetWorld();
+  startGame();
+}
+
+function gameLoop(timestamp = 0) {
+  const delta = timestamp - state.lastTime;
+  state.lastTime = timestamp;
+
+  if (state.started && !state.ended) {
+    updatePlayer(delta);
+  }
+
   draw();
   requestAnimationFrame(gameLoop);
 }
@@ -571,23 +647,20 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-startBtn.addEventListener('click', () => {
-  state.running = true;
-  startScreen.classList.add('hidden');
-});
-
-restartBtn.addEventListener('click', () => {
-  resetWorld();
-});
-
-(async function init() {
+async function init() {
   try {
     await loadAssets();
     setupControls();
     resetWorld();
-    gameLoop();
+
+    startBtn.addEventListener("click", startGame);
+    restartBtn.addEventListener("click", restartGame);
+
+    requestAnimationFrame(gameLoop);
   } catch (error) {
     console.error(error);
-    alert('Some assets did not load. Double-check filenames and folder structure.');
+    alert("Some assets failed to load. Check filenames and folder paths.");
   }
-})();
+}
+
+init();
