@@ -1,6 +1,6 @@
 :root {
   --bg: #101623;
-  --panel: rgba(13, 16, 31, 0.8);
+  --panel: rgba(13, 16, 31, 0.78);
   --panel-border: rgba(255, 255, 255, 0.14);
   --text: #ffffff;
 }
@@ -53,8 +53,8 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: linear-gradient(rgba(7, 10, 20, 0.3), rgba(7, 10, 20, 0.78));
-  z-index: 30;
+  background: linear-gradient(rgba(7, 10, 20, 0.3), rgba(7, 10, 20, 0.75));
+  z-index: 20;
 }
 
 .overlay.hidden {
@@ -62,7 +62,7 @@ body {
 }
 
 .panel {
-  width: min(100%, 312px);
+  width: min(100%, 300px);
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 22px;
@@ -85,7 +85,7 @@ body {
 }
 
 .help {
-  opacity: 0.8;
+  opacity: 0.78;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -110,23 +110,9 @@ button {
 
 #hud {
   position: absolute;
-  top: 16px;
-  left: 14px;
-  right: 14px;
+  top: 18px;
+  left: 18px;
   z-index: 12;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  pointer-events: none;
-}
-
-.hud-row {
-  display: flex;
-  gap: 10px;
-}
-
-.hud-pill {
   padding: 10px 14px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.35);
@@ -134,19 +120,6 @@ button {
   font-weight: 700;
   font-size: 18px;
   letter-spacing: 0.02em;
-}
-
-.health-wrap {
-  padding: 6px 8px;
-  border-radius: 18px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-#health-bar {
-  display: block;
-  width: 164px;
-  height: auto;
 }
 
 #touch-controls {
@@ -196,13 +169,8 @@ button {
   }
 
   #hud {
-    top: max(12px, env(safe-area-inset-top));
-    left: 12px;
-    right: 12px;
-  }
-
-  #health-bar {
-    width: 148px;
+    top: max(14px, env(safe-area-inset-top));
+    left: 14px;
   }
 
   #touch-controls {
