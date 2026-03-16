@@ -1,484 +1,592 @@
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-const startScreen = document.getElementById('start-screen');
-const gameOverScreen = document.getElementById('game-over-screen');
-const startBtn = document.getElementById('start-btn');
-const restartBtn = document.getElementById('restart-btn');
-const scoreEl = document.getElementById('score');
-const finalScoreEl = document.getElementById('final-score');
+const startOverlay = document.getElementById("startOverlay");
+const startButton = document.getElementById("startButton");
+const scoreValue = document.getElementById("scoreValue");
 
-const WIDTH = canvas.width;
-const HEIGHT = canvas.height;
+const leftBtn = document.getElementById("leftBtn");
+const rightBtn = document.getElementById("rightBtn");
+const jumpBtn = document.getElementById("jumpBtn");
+
+const GAME_WIDTH = 720;
+const GAME_HEIGHT = 1280;
+canvas.width = GAME_WIDTH;
+canvas.height = GAME_HEIGHT;
+
 const TILE = 64;
-const WORLD_WIDTH = 4600;
-const GRAVITY = 0.52;
+const WORLD_WIDTH = 5200;
+const GRAVITY = 0.75;
+const MAX_FALL = 20;
+const PLAYER_SPEED = 5.5;
+const JUMP_POWER = -15;
 
-const input = {
+let gameStarted = false;
+let assetsLoaded = false;
+let score = 0;
+let cameraX = 0;
+let frameCount = 0;
+let levelComplete = false;
+
+const keys = {
   left: false,
   right: false,
-  jump: false,
-  jumpPressed: false,
+  jump: false
 };
 
-const state = {
-  running: false,
-  gameOver: false,
-  score: 0,
-  cameraX: 0,
-};
-
-const images = {};
-const assetPaths = {
-  sprite: 'assets/unicorn_run.png',
-  bg1: 'assets/background/background_layer_1.png',
-  bg2: 'assets/background/background_layer_2.png',
-  bg3: 'assets/background/background_layer_3.png',
-  bg4: 'assets/background/background_layer_4.png',
-  bg5: 'assets/background/background_layer_5.png',
-  bg6: 'assets/background/background_layer_6.png',
-  left: 'assets/button_left.png',
-  right: 'assets/button_right.png',
-  jump: 'assets/button_jump.png',
-  tileTopLeft: 'assets/dirt_tiles/tile_top_left.png',
-  tileTopCenter: 'assets/dirt_tiles/tile_top_center.png',
-  tileTopRight: 'assets/dirt_tiles/tile_top_right.png',
-  tileMiddleLeft: 'assets/dirt_tiles/tile_middle_left.png',
-  tileMiddleCenter: 'assets/dirt_tiles/tile_middle_center.png',
-  tileMiddleRight: 'assets/dirt_tiles/tile_middle_right.png',
-  tileBottomLeft: 'assets/dirt_tiles/tile_bottom_left.png',
-  tileBottomCenter: 'assets/dirt_tiles/tile_bottom_center.png',
-  tileBottomRight: 'assets/dirt_tiles/tile_bottom_right.png',
-  tileFloating: 'assets/dirt_tiles/tile_floating.png',
-  apple: 'assets/food/apple.png',
-  banana: 'assets/food/banana.png',
-  cherry: 'assets/food/cherry.png',
-  grape: 'assets/food/grape.png',
-  kiwi: 'assets/food/kiwi.png',
-  lemon: 'assets/food/lemon.png',
-  peach: 'assets/food/peach.png',
-  pear: 'assets/food/pear.png',
-  pineapple: 'assets/food/pineapple.png',
-  strawberry: 'assets/food/strawberry.png',
-  watermelon: 'assets/food/watermelon.png',
-  avacado: 'assets/food/avacado.png',
-};
-
-const foodKeys = ['apple', 'banana', 'cherry', 'grape', 'kiwi', 'lemon', 'peach', 'pear', 'pineapple', 'strawberry', 'watermelon', 'avacado'];
-
-function loadImage(key, src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      images[key] = img;
-      resolve();
-    };
-    img.onerror = reject;
-    img.src = src;
-  });
+function makeImage(src) {
+  const img = new Image();
+  img.src = src;
+  return img;
 }
 
-async function loadAssets() {
-  const promises = Object.entries(assetPaths).map(([key, src]) => loadImage(key, src));
-  await Promise.all(promises);
+const images = {
+  playerSheet: makeImage("unicorn_run.png"),
+
+  bg1: makeImage("background/background_layer_1.png"),
+  bg2: makeImage("background/background_layer_2.png"),
+  bg3: makeImage("background/background_layer_3.png"),
+  bg4: makeImage("background/background_layer_4.png"),
+  bg5: makeImage("background/background_layer_5.png"),
+  bg6: makeImage("background/background_layer_6.png"),
+
+  topLeft: makeImage("dirt_tiles/tile_top_left.png"),
+  topCenter: makeImage("dirt_tiles/tile_top_center.png"),
+  topRight: makeImage("dirt_tiles/tile_top_right.png"),
+  middleLeft: makeImage("dirt_tiles/tile_middle_left.png"),
+  middleCenter: makeImage("dirt_tiles/tile_middle_center.png"),
+  middleRight: makeImage("dirt_tiles/tile_middle_right.png"),
+  bottomLeft: makeImage("dirt_tiles/tile_bottom_left.png"),
+  bottomCenter: makeImage("dirt_tiles/tile_bottom_center.png"),
+  bottomRight: makeImage("dirt_tiles/tile_bottom_right.png"),
+  floating: makeImage("dirt_tiles/tile_floating.png"),
+
+  apple: makeImage("food/apple.png"),
+  avacado: makeImage("food/avacado.png"),
+  banana: makeImage("food/banana.png"),
+  cherry: makeImage("food/cherry.png"),
+  grape: makeImage("food/grape.png"),
+  kiwi: makeImage("food/kiwi.png"),
+  lemon: makeImage("food/lemon.png"),
+  peach: makeImage("food/peach.png"),
+  pear: makeImage("food/pear.png"),
+  pineapple: makeImage("food/pineapple.png"),
+  strawberry: makeImage("food/strawberry.png"),
+  watermelon: makeImage("food/watermelon.png")
+};
+
+const bgLayers = [
+  { img: images.bg1, speed: 0.1 },
+  { img: images.bg2, speed: 0.18 },
+  { img: images.bg3, speed: 0.28 },
+  { img: images.bg4, speed: 0.4 },
+  { img: images.bg5, speed: 0.55 },
+  { img: images.bg6, speed: 0.75 }
+];
+
+const foodImages = [
+  images.apple,
+  images.avacado,
+  images.banana,
+  images.cherry,
+  images.grape,
+  images.kiwi,
+  images.lemon,
+  images.peach,
+  images.pear,
+  images.pineapple,
+  images.strawberry,
+  images.watermelon
+];
+
+function waitForAssets() {
+  const list = Object.values(images);
+  let loaded = 0;
+
+  return new Promise((resolve) => {
+    const done = () => {
+      loaded++;
+      if (loaded === list.length) resolve();
+    };
+
+    list.forEach((img) => {
+      if (img.complete) {
+        done();
+      } else {
+        img.onload = done;
+        img.onerror = done;
+      }
+    });
+  });
 }
 
 const player = {
-  x: 120,
-  y: 0,
-  w: 112,
-  h: 112,
+  x: 140,
+  y: 820,
+  w: 132,
+  h: 132,
   vx: 0,
   vy: 0,
-  speed: 4.2,
-  jumpPower: 12.8,
-  grounded: false,
-  frame: 0,
-  frameTimer: 0,
+  onGround: false,
   facing: 1,
+  frame: 0,
+  frameTick: 0
 };
 
-let groundSegments = [];
-let platforms = [];
-let collectibles = [];
-let finishZone = { x: WORLD_WIDTH - 220, y: 0, w: 90, h: 180 };
+const platforms = [];
+const collectibles = [];
+const finishFlag = {
+  x: WORLD_WIDTH - 220,
+  y: 0,
+  w: 26,
+  h: 260
+};
 
-function resetWorld() {
-  state.running = false;
-  state.gameOver = false;
-  state.score = 0;
-  state.cameraX = 0;
-  scoreEl.textContent = '0';
+function addGroundSegment(startCol, endCol, topRow, thickness = 4) {
+  for (let col = startCol; col <= endCol; col++) {
+    for (let row = topRow; row < topRow + thickness; row++) {
+      let tile = images.middleCenter;
 
-  player.x = 120;
-  player.y = 0;
+      const isTop = row === topRow;
+      const isBottom = row === topRow + thickness - 1;
+      const isLeft = col === startCol;
+      const isRight = col === endCol;
+
+      if (isTop && isLeft) tile = images.topLeft;
+      else if (isTop && isRight) tile = images.topRight;
+      else if (isTop) tile = images.topCenter;
+      else if (isBottom && isLeft) tile = images.bottomLeft;
+      else if (isBottom && isRight) tile = images.bottomRight;
+      else if (isBottom) tile = images.bottomCenter;
+      else if (isLeft) tile = images.middleLeft;
+      else if (isRight) tile = images.middleRight;
+
+      platforms.push({
+        x: col * TILE,
+        y: row * TILE,
+        w: TILE,
+        h: TILE,
+        img: tile
+      });
+    }
+  }
+}
+
+function addFloatingPlatform(startCol, tilesWide, row) {
+  for (let i = 0; i < tilesWide; i++) {
+    platforms.push({
+      x: (startCol + i) * TILE,
+      y: row * TILE,
+      w: TILE,
+      h: TILE,
+      img: images.floating
+    });
+  }
+}
+
+function addCollectible(x, y, points = 10) {
+  const img = foodImages[collectibles.length % foodImages.length];
+  collectibles.push({
+    x,
+    y,
+    w: 54,
+    h: 54,
+    img,
+    points,
+    collected: false,
+    bobOffset: Math.random() * Math.PI * 2
+  });
+}
+
+function buildLevel() {
+  platforms.length = 0;
+  collectibles.length = 0;
+
+  addGroundSegment(0, 14, 16, 4);
+  addGroundSegment(16, 26, 15, 5);
+  addGroundSegment(29, 40, 16, 4);
+  addGroundSegment(43, 56, 14, 6);
+  addGroundSegment(59, 71, 16, 4);
+  addGroundSegment(74, 81, 15, 5);
+
+  addFloatingPlatform(8, 3, 12);
+  addFloatingPlatform(12, 3, 10);
+  addFloatingPlatform(20, 3, 11);
+  addFloatingPlatform(24, 2, 9);
+  addFloatingPlatform(33, 3, 12);
+  addFloatingPlatform(47, 3, 10);
+  addFloatingPlatform(52, 2, 8);
+  addFloatingPlatform(63, 3, 11);
+  addFloatingPlatform(68, 2, 9);
+
+  const spots = [
+    [620, 860], [850, 700], [1130, 580], [1460, 650], [1710, 760],
+    [2050, 860], [2230, 630], [2510, 540], [2790, 760], [3120, 640],
+    [3410, 470], [3650, 760], [3890, 860], [4180, 700], [4470, 600],
+    [4790, 820]
+  ];
+
+  spots.forEach(([x, y]) => addCollectible(x, y));
+  finishFlag.y = 16 * TILE - 260;
+}
+
+function rectsOverlap(a, b) {
+  return (
+    a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y
+  );
+}
+
+function resetGame() {
+  score = 0;
+  scoreValue.textContent = score;
+  cameraX = 0;
+  levelComplete = false;
+
+  player.x = 140;
+  player.y = 820;
   player.vx = 0;
   player.vy = 0;
-  player.grounded = false;
-  player.frame = 0;
-  player.frameTimer = 0;
+  player.onGround = false;
   player.facing = 1;
+  player.frame = 0;
+  player.frameTick = 0;
 
-  groundSegments = [
-    { x: 0, y: 600, width: 7, height: 2 },
-    { x: 512, y: 568, width: 4, height: 3 },
-    { x: 896, y: 632, width: 5, height: 2 },
-    { x: 1280, y: 568, width: 4, height: 3 },
-    { x: 1664, y: 600, width: 5, height: 2 },
-    { x: 2112, y: 632, width: 4, height: 2 },
-    { x: 2496, y: 568, width: 5, height: 3 },
-    { x: 3008, y: 632, width: 4, height: 2 },
-    { x: 3392, y: 568, width: 5, height: 3 },
-    { x: 3904, y: 600, width: 6, height: 2 },
-  ];
-
-  platforms = [
-    { x: 320, y: 468, width: 2 },
-    { x: 704, y: 430, width: 2 },
-    { x: 1088, y: 504, width: 2 },
-    { x: 1472, y: 430, width: 2 },
-    { x: 1888, y: 500, width: 3 },
-    { x: 2464, y: 448, width: 2 },
-    { x: 2912, y: 388, width: 2 },
-    { x: 3296, y: 480, width: 2 },
-    { x: 3712, y: 420, width: 2 },
-  ];
-
-  collectibles = [
-    { x: 368, y: 404 },
-    { x: 474, y: 404 },
-    { x: 748, y: 364 },
-    { x: 1140, y: 438 },
-    { x: 1510, y: 364 },
-    { x: 1976, y: 432 },
-    { x: 2130, y: 558 },
-    { x: 2522, y: 382 },
-    { x: 2972, y: 322 },
-    { x: 3360, y: 414 },
-    { x: 3770, y: 352 },
-    { x: 4010, y: 536 },
-  ].map((item, index) => ({
-    ...item,
-    size: 42,
-    collected: false,
-    bob: Math.random() * Math.PI * 2,
-    spriteKey: foodKeys[index % foodKeys.length],
-  }));
-
-  const startGround = groundSegments[0];
-  player.y = startGround.y - player.h;
-  finishZone.y = 420;
-
-  gameOverScreen.classList.add('hidden');
-  startScreen.classList.remove('hidden');
-  startScreen.classList.add('visible');
+  buildLevel();
 }
 
-function setButtonHold(element, key) {
-  const onDown = (event) => {
-    event.preventDefault();
-    input[key] = true;
-    if (key === 'jump') input.jumpPressed = true;
-  };
-  const onUp = (event) => {
-    event.preventDefault();
-    input[key] = false;
-  };
-
-  element.addEventListener('pointerdown', onDown);
-  element.addEventListener('pointerup', onUp);
-  element.addEventListener('pointerleave', onUp);
-  element.addEventListener('pointercancel', onUp);
-}
-
-function setupControls() {
-  setButtonHold(document.getElementById('left-btn'), 'left');
-  setButtonHold(document.getElementById('right-btn'), 'right');
-  setButtonHold(document.getElementById('jump-btn'), 'jump');
-
-  window.addEventListener('keydown', (event) => {
-    if (event.code === 'ArrowLeft' || event.code === 'KeyA') input.left = true;
-    if (event.code === 'ArrowRight' || event.code === 'KeyD') input.right = true;
-    if (event.code === 'ArrowUp' || event.code === 'Space' || event.code === 'KeyW') {
-      if (!input.jump) input.jumpPressed = true;
-      input.jump = true;
-    }
-  });
-
-  window.addEventListener('keyup', (event) => {
-    if (event.code === 'ArrowLeft' || event.code === 'KeyA') input.left = false;
-    if (event.code === 'ArrowRight' || event.code === 'KeyD') input.right = false;
-    if (event.code === 'ArrowUp' || event.code === 'Space' || event.code === 'KeyW') input.jump = false;
-  });
-}
-
-function updatePlayer() {
-  let move = 0;
-  if (input.left) move -= 1;
-  if (input.right) move += 1;
-
-  player.vx = move * player.speed;
-  if (move !== 0) player.facing = move;
-
-  if (input.jumpPressed && player.grounded) {
-    player.vy = -player.jumpPower;
-    player.grounded = false;
-  }
-  input.jumpPressed = false;
-
-  if (!input.jump && player.vy < -5) {
-    player.vy += 0.45;
-  }
-
-  player.vy += GRAVITY;
-  player.x += player.vx;
-  player.y += player.vy;
-  player.grounded = false;
-
-  const solids = [];
-
-  groundSegments.forEach((seg) => {
-    for (let c = 0; c < seg.width; c++) {
-      for (let r = 0; r < seg.height; r++) {
-        solids.push({ x: seg.x + c * TILE, y: seg.y + r * TILE, w: TILE, h: TILE });
-      }
-    }
-  });
-
-  platforms.forEach((plat) => {
-    for (let c = 0; c < plat.width; c++) {
-      solids.push({ x: plat.x + c * TILE, y: plat.y, w: TILE, h: TILE, floating: true });
-    }
-  });
-
-  for (const tile of solids) {
-    if (!rectsOverlap(player.x, player.y, player.w, player.h, tile.x, tile.y, tile.w, tile.h)) continue;
-
-    const prevBottom = player.y - player.vy + player.h;
-    const prevTop = player.y - player.vy;
-    const prevRight = player.x - player.vx + player.w;
-    const prevLeft = player.x - player.vx;
-
-    if (prevBottom <= tile.y + 8 && player.vy >= 0) {
-      player.y = tile.y - player.h;
-      player.vy = 0;
-      player.grounded = true;
-      continue;
-    }
-
-    if (prevTop >= tile.y + tile.h - 8 && player.vy < 0) {
-      player.y = tile.y + tile.h;
-      player.vy = 0;
-      continue;
-    }
-
-    if (prevRight <= tile.x + 8 && player.vx > 0) {
-      player.x = tile.x - player.w;
-      continue;
-    }
-
-    if (prevLeft >= tile.x + tile.w - 8 && player.vx < 0) {
-      player.x = tile.x + tile.w;
-      continue;
-    }
-  }
-
-  if (player.y > HEIGHT + 220) {
-    const nearest = groundSegments.find((seg) => seg.x + seg.width * TILE > Math.max(player.x - 200, 0)) || groundSegments[0];
-    player.x = Math.max(nearest.x + 20, 80);
-    player.y = nearest.y - player.h;
-    player.vx = 0;
-    player.vy = 0;
-  }
-
-  player.x = clamp(player.x, 0, WORLD_WIDTH - player.w);
-
-  collectibles.forEach((item) => {
-    item.bob += 0.08;
-    if (item.collected) return;
-    const bobY = item.y + Math.sin(item.bob) * 6;
-    if (rectsOverlap(player.x + 18, player.y + 16, player.w - 36, player.h - 28, item.x, bobY, item.size, item.size)) {
-      item.collected = true;
-      state.score += 10;
-      scoreEl.textContent = String(state.score);
-    }
-  });
-
-  if (rectsOverlap(player.x, player.y, player.w, player.h, finishZone.x, finishZone.y, finishZone.w, finishZone.h)) {
-    endGame();
-  }
-
-  if (Math.abs(player.vx) > 0.1 || !player.grounded) {
-    player.frameTimer += 1;
-    if (player.frameTimer > 5) {
-      player.frame = (player.frame + 1) % 12;
-      player.frameTimer = 0;
-    }
-  } else {
-    player.frame = 0;
-    player.frameTimer = 0;
-  }
-
-  const targetCamera = clamp(player.x - WIDTH * 0.38, 0, WORLD_WIDTH - WIDTH);
-  state.cameraX += (targetCamera - state.cameraX) * 0.12;
-}
-
-function draw() {
-  ctx.clearRect(0, 0, WIDTH, HEIGHT);
-  drawBackground();
-  drawWorld();
-  drawCollectibles();
-  drawFinishFlag();
-  drawPlayer();
-}
-
-function drawBackground() {
-  const layers = [
-    { key: 'bg1', speed: 0.08, y: 0, h: HEIGHT },
-    { key: 'bg2', speed: 0.14, y: 0, h: HEIGHT },
-    { key: 'bg3', speed: 0.22, y: 10, h: HEIGHT - 10 },
-    { key: 'bg4', speed: 0.32, y: 80, h: HEIGHT - 80 },
-    { key: 'bg5', speed: 0.5, y: 160, h: HEIGHT - 120 },
-    { key: 'bg6', speed: 0.72, y: 250, h: HEIGHT - 110 },
-  ];
-
-  layers.forEach((layer) => {
-    const img = images[layer.key];
-    const drawWidth = img.width * (layer.h / img.height);
-    let x = -(state.cameraX * layer.speed) % drawWidth;
-    if (x > 0) x -= drawWidth;
-    for (; x < WIDTH; x += drawWidth) {
-      ctx.drawImage(img, x, layer.y, drawWidth, layer.h);
-    }
-  });
-}
-
-function drawWorld() {
-  groundSegments.forEach((seg) => drawGroundBlock(seg));
-  platforms.forEach((plat) => drawPlatform(plat));
-}
-
-function drawGroundBlock(seg) {
-  for (let c = 0; c < seg.width; c++) {
-    for (let r = 0; r < seg.height; r++) {
-      let key = 'tileMiddleCenter';
-      const top = r === 0;
-      const bottom = r === seg.height - 1;
-      const left = c === 0;
-      const right = c === seg.width - 1;
-
-      if (top && left) key = 'tileTopLeft';
-      else if (top && right) key = 'tileTopRight';
-      else if (top) key = 'tileTopCenter';
-      else if (bottom && left) key = 'tileBottomLeft';
-      else if (bottom && right) key = 'tileBottomRight';
-      else if (bottom) key = 'tileBottomCenter';
-      else if (left) key = 'tileMiddleLeft';
-      else if (right) key = 'tileMiddleRight';
-
-      drawTile(images[key], seg.x + c * TILE - state.cameraX, seg.y + r * TILE, TILE, TILE);
-    }
-  }
-}
-
-function drawPlatform(plat) {
-  for (let c = 0; c < plat.width; c++) {
-    drawTile(images.tileFloating, plat.x + c * TILE - state.cameraX, plat.y, TILE, TILE);
-  }
-}
-
-function drawTile(img, x, y, w, h) {
-  if (x + w < 0 || x > WIDTH) return;
-  ctx.drawImage(img, x, y, w, h);
-}
-
-function drawCollectibles() {
-  collectibles.forEach((item) => {
-    if (item.collected) return;
-    const x = item.x - state.cameraX;
-    if (x < -item.size || x > WIDTH + item.size) return;
-    const y = item.y + Math.sin(item.bob) * 6;
-    ctx.drawImage(images[item.spriteKey], x, y, item.size, item.size);
-  });
-}
-
-function drawFinishFlag() {
-  const x = finishZone.x - state.cameraX;
-  if (x < -100 || x > WIDTH + 100) return;
-
-  ctx.fillStyle = '#4f3722';
-  ctx.fillRect(x + 40, finishZone.y - 110, 8, 170);
-  ctx.fillStyle = '#ffe65a';
-  ctx.beginPath();
-  ctx.moveTo(x + 48, finishZone.y - 108);
-  ctx.lineTo(x + 118, finishZone.y - 84);
-  ctx.lineTo(x + 48, finishZone.y - 60);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#2c1f10';
-  ctx.font = 'bold 14px Arial';
-  ctx.fillText('FINISH', x + 30, finishZone.y - 124);
-}
-
-function drawPlayer() {
-  const sprite = images.sprite;
-  const cols = 6;
-  const rows = 6;
-  const frameWidth = sprite.width / cols;
-  const frameHeight = sprite.height / rows;
-  let frameIndex = player.frame;
-  if (!player.grounded) frameIndex = 7;
-  const sx = (frameIndex % cols) * frameWidth;
-  const sy = Math.floor(frameIndex / cols) * frameHeight;
-
-  ctx.save();
-  const drawX = Math.round(player.x - state.cameraX + player.w / 2);
-  const drawY = Math.round(player.y + player.h / 2);
-  ctx.translate(drawX, drawY);
-  ctx.scale(player.facing, 1);
-  ctx.drawImage(sprite, sx, sy, frameWidth, frameHeight, -player.w / 2, -player.h / 2, player.w, player.h);
-  ctx.restore();
+function startGame() {
+  resetGame();
+  gameStarted = true;
+  startOverlay.classList.add("hidden");
 }
 
 function endGame() {
-  state.running = false;
-  state.gameOver = true;
-  finalScoreEl.textContent = `Score: ${state.score}`;
-  gameOverScreen.classList.remove('hidden');
+  gameStarted = false;
+  startOverlay.classList.remove("hidden");
+  startButton.textContent = "PLAY AGAIN";
 }
 
-function gameLoop() {
-  if (state.running) updatePlayer();
-  draw();
-  requestAnimationFrame(gameLoop);
-}
+startButton.addEventListener("click", startGame);
 
-function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-startBtn.addEventListener('click', () => {
-  state.running = true;
-  startScreen.classList.add('hidden');
+window.addEventListener("keydown", (e) => {
+  if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
+  if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
+  if (e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyW") keys.jump = true;
 });
 
-restartBtn.addEventListener('click', () => {
-  resetWorld();
+window.addEventListener("keyup", (e) => {
+  if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
+  if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
+  if (e.code === "ArrowUp" || e.code === "Space" || e.code === "KeyW") keys.jump = false;
 });
 
-(async function init() {
-  try {
-    await loadAssets();
-    setupControls();
-    resetWorld();
-    gameLoop();
-  } catch (error) {
-    console.error(error);
-    alert('Some assets did not load. Double-check filenames and folder structure.');
+function bindHold(button, keyName) {
+  const press = (e) => {
+    e.preventDefault();
+    keys[keyName] = true;
+  };
+  const release = (e) => {
+    e.preventDefault();
+    keys[keyName] = false;
+  };
+
+  button.addEventListener("touchstart", press, { passive: false });
+  button.addEventListener("touchend", release, { passive: false });
+  button.addEventListener("touchcancel", release, { passive: false });
+  button.addEventListener("mousedown", press);
+  button.addEventListener("mouseup", release);
+  button.addEventListener("mouseleave", release);
+}
+
+bindHold(leftBtn, "left");
+bindHold(rightBtn, "right");
+
+jumpBtn.addEventListener(
+  "touchstart",
+  (e) => {
+    e.preventDefault();
+    if (player.onGround && gameStarted) {
+      player.vy = JUMP_POWER;
+      player.onGround = false;
+    }
+  },
+  { passive: false }
+);
+
+jumpBtn.addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  if (player.onGround && gameStarted) {
+    player.vy = JUMP_POWER;
+    player.onGround = false;
   }
-})();
+});
+
+function updatePlayer() {
+  player.vx = 0;
+
+  if (keys.left) {
+    player.vx = -PLAYER_SPEED;
+    player.facing = -1;
+  }
+  if (keys.right) {
+    player.vx = PLAYER_SPEED;
+    player.facing = 1;
+  }
+
+  player.x += player.vx;
+
+  player.onGround = false;
+  for (const p of platforms) {
+    if (rectsOverlap(player, p)) {
+      if (player.vx > 0) {
+        player.x = p.x - player.w;
+      } else if (player.vx < 0) {
+        player.x = p.x + p.w;
+      }
+    }
+  }
+
+  player.vy += GRAVITY;
+  if (player.vy > MAX_FALL) player.vy = MAX_FALL;
+  player.y += player.vy;
+
+  for (const p of platforms) {
+    if (rectsOverlap(player, p)) {
+      if (player.vy > 0) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (player.vy < 0) {
+        player.y = p.y + p.h;
+        player.vy = 0;
+      }
+    }
+  }
+
+  if (player.x < 0) player.x = 0;
+  if (player.x + player.w > WORLD_WIDTH) player.x = WORLD_WIDTH - player.w;
+
+  if (player.y > GAME_HEIGHT + 300) {
+    endGame();
+  }
+
+  for (const item of collectibles) {
+    if (!item.collected && rectsOverlap(player, item)) {
+      item.collected = true;
+      score += item.points;
+      scoreValue.textContent = score;
+    }
+  }
+
+  if (rectsOverlap(player, finishFlag)) {
+    levelComplete = true;
+    endGame();
+  }
+
+  const moving = keys.left || keys.right;
+  if (moving) {
+    player.frameTick++;
+    if (player.frameTick >= 7) {
+      player.frame = (player.frame + 1) % 6;
+      player.frameTick = 0;
+    }
+  } else {
+    player.frame = 0;
+    player.frameTick = 0;
+  }
+}
+
+function updateCamera() {
+  const target = player.x - GAME_WIDTH * 0.35;
+  cameraX += (target - cameraX) * 0.12;
+
+  const maxCam = WORLD_WIDTH - GAME_WIDTH;
+  if (cameraX < 0) cameraX = 0;
+  if (cameraX > maxCam) cameraX = maxCam;
+}
+
+function drawParallax() {
+  const layers = bgLayers.filter((layer) => layer.img.complete);
+
+  for (const layer of layers) {
+    const img = layer.img;
+    const scaledHeight = GAME_HEIGHT;
+    const scaledWidth = img.width * (scaledHeight / img.height);
+
+    let x = -(cameraX * layer.speed) % scaledWidth;
+    if (x > 0) x -= scaledWidth;
+
+    for (let drawX = x; drawX < GAME_WIDTH; drawX += scaledWidth) {
+      ctx.drawImage(img, drawX, 0, scaledWidth, scaledHeight);
+    }
+  }
+}
+
+function drawPlatforms() {
+  for (const p of platforms) {
+    const screenX = p.x - cameraX;
+    if (screenX + p.w < -10 || screenX > GAME_WIDTH + 10) continue;
+    ctx.drawImage(p.img, screenX, p.y, p.w, p.h);
+  }
+}
+
+function drawCollectibles() {
+  for (const item of collectibles) {
+    if (item.collected) continue;
+    const screenX = item.x - cameraX;
+    if (screenX + item.w < -20 || screenX > GAME_WIDTH + 20) continue;
+
+    const bob = Math.sin(frameCount * 0.08 + item.bobOffset) * 8;
+    ctx.drawImage(item.img, screenX, item.y + bob, item.w, item.h);
+  }
+}
+
+function drawFinish() {
+  const x = finishFlag.x - cameraX;
+  if (x + finishFlag.w < 0 || x > GAME_WIDTH) return;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x, finishFlag.y, 8, finishFlag.h);
+
+  ctx.fillStyle = "#ff5fa2";
+  ctx.beginPath();
+  ctx.moveTo(x + 8, finishFlag.y);
+  ctx.lineTo(x + 82, finishFlag.y + 34);
+  ctx.lineTo(x + 8, finishFlag.y + 68);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawPlayer() {
+  const cols = 6;
+  const rows = 6;
+  const frameWidth = images.playerSheet.width / cols;
+  const frameHeight = images.playerSheet.height / rows;
+
+  const sx = player.frame * frameWidth;
+  const sy = 0;
+
+  const dx = player.x - cameraX;
+  const dy = player.y;
+
+  ctx.save();
+
+  if (player.facing === -1) {
+    ctx.translate(dx + player.w, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      images.playerSheet,
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
+      0,
+      0,
+      player.w,
+      player.h
+    );
+  } else {
+    ctx.drawImage(
+      images.playerSheet,
+      sx,
+      sy,
+      frameWidth,
+      frameHeight,
+      dx,
+      dy,
+      player.w,
+      player.h
+    );
+  }
+
+  ctx.restore();
+}
+
+function drawStartScene() {
+  drawParallax();
+
+  ctx.fillStyle = "rgba(255,255,255,0.16)";
+  ctx.fillRect(0, GAME_HEIGHT - 220, GAME_WIDTH, 220);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 46px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("UNICORN RUN", GAME_WIDTH / 2, 240);
+
+  ctx.font = "28px Arial";
+  ctx.fillText("Press Start", GAME_WIDTH / 2, 300);
+
+  if (images.playerSheet.complete) {
+    const cols = 6;
+    const rows = 6;
+    const frameWidth = images.playerSheet.width / cols;
+    const frameHeight = images.playerSheet.height / rows;
+    ctx.drawImage(
+      images.playerSheet,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+      GAME_WIDTH / 2 - 120,
+      GAME_HEIGHT / 2 - 90,
+      240,
+      240
+    );
+  }
+}
+
+function drawGame() {
+  ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  drawParallax();
+  drawPlatforms();
+  drawCollectibles();
+  drawFinish();
+  drawPlayer();
+
+  if (levelComplete) {
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "bold 42px Arial";
+    ctx.fillText("LEVEL COMPLETE!", GAME_WIDTH / 2, 280);
+  }
+}
+
+function loop() {
+  frameCount++;
+
+  if (!assetsLoaded) {
+    ctx.fillStyle = "#1b2240";
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "30px Arial";
+    ctx.fillText("Loading...", GAME_WIDTH / 2, GAME_HEIGHT / 2);
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  if (!gameStarted) {
+    drawStartScene();
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  updatePlayer();
+  updateCamera();
+  drawGame();
+
+  requestAnimationFrame(loop);
+}
+
+waitForAssets().then(() => {
+  assetsLoaded = true;
+  resetGame();
+});
+
+loop();
