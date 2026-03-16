@@ -4,8 +4,11 @@
   <meta charset="UTF-8" />
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
   />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0b1d2e" />
   <title>Unicorn Run</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -16,22 +19,29 @@
     <div id="start-screen" class="overlay visible">
       <div class="panel">
         <h1>UNICORN RUN</h1>
-        <p>Simple placeholder start screen</p>
-        <button id="start-btn">Press Start</button>
-        <div class="help">Move with arrows. Tap jump to leap and collect food.</div>
+        <p>Retro platformer test build</p>
+        <button id="start-btn">PRESS START</button>
+        <div class="help">Move with arrows. Jump, collect food, and enter the portal.</div>
       </div>
     </div>
 
     <div id="end-screen" class="overlay hidden">
       <div class="panel">
-        <h2 id="end-title">Level Complete</h2>
+        <h2 id="end-title">LEVEL CLEAR</h2>
         <p id="final-score">Score: 0</p>
-        <button id="restart-btn">Play Again</button>
+        <button id="restart-btn">PLAY AGAIN</button>
       </div>
     </div>
 
     <div id="hud">
-      <div>Score: <span id="score">0</span></div>
+      <div class="hud-box">
+        <span class="hud-label">SCORE</span>
+        <span id="score">0</span>
+      </div>
+      <div class="hud-box health-box">
+        <span class="hud-label">HP</span>
+        <img id="health-ui" src="assets/health_bar/healthbar_5.png" alt="Health bar">
+      </div>
     </div>
 
     <div id="touch-controls">
